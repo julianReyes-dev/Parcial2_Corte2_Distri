@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # API Service
+  api:
+    build: ./api
+    container_name: api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.api.service=api"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+    networks:
+      - microservices_net
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_QUEUE=messages
+      - BASIC_AUTH_USERNAME=admin
+      - BASIC_AUTH_PASSWORD=secret
+    depends_on:
+      - rabbitmq
+
+  # Worker Service
+  worker:
+    build: ./worker
+    container_name: worker
+    networks:
+      - microservices_net
+    volumes:
+      - messages_data:/app/data
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_QUEUE=messages
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  # RabbitMQ Service
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rabbitmq.rule=PathPrefix(`/monitor`) || PathPrefix(`/js`) || PathPrefix(`/css`) || PathPrefix(`/img`)"
+      - "traefik.http.routers.rabbitmq.service=rabbitmq"
+      - "traefik.http.services.rabbitmq.loadbalancer.server.port=15672"
+      - "traefik.http.routers.rabbitmq.middlewares=rabbitmq-stripprefix"
+      - "traefik.http.middlewares.rabbitmq-stripprefix.stripprefix.prefixes=/monitor"
+    networks:
+      - microservices_net
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=secret
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Traefik Service
+  traefik:
+    image: traefik:v2.5
+    container_name: traefik
+    command:
+      - --api.insecure=true
+      - --providers.docker
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+      - "8080:8080"  # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml
+    networks:
+      - microservices_net
+
+# Networks and Volumes
+networks:
+  microservices_net:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
+    driver: local
+  messages_data:
+    driver: local
