@@ -9,7 +9,7 @@ Este proyecto implementa una arquitectura de microservicios local que incluye:
 
 ## 📋 Tabla de Contenidos
 
-- [Respuestas a Conceptos Teoricos] (#-conceptos-teóricos)
+- [Respuestas a Conceptos Teoricos](#-conceptos-teoricos)
 - [Estructura del Proyecto](#-estructura-del-proyecto)
 - [Requisitos](#-requisitos)
 - [Configuración](#-configuración)
